@@ -105,7 +105,7 @@ def parse_train_file(train_file_path):
 def choose_best_attribute(attributes, examples, gain_measure):
     probabilietes = [float(count) / len(examples) for tag, count in Counter(examples[:, -1]).iteritems()]
     info_gain = "info-gain"
-    s_entropy = entropy(probabilietes) if gain_measure == info_gain else min(probabilietes)
+    s_entropy = calc_entropy(probabilietes) if gain_measure == info_gain else min(probabilietes)
     values_count = count_values(attributes, examples)
     attributes_information_gain = {}
     classifiers = 'yesAndNoTags'
@@ -130,9 +130,9 @@ def handleAttributeAndValue(attribute, attributes_information_gain, classifiers,
 
 class Node:
     def __init__(self, node_attribute, value):
+        self.node_sub_tree = []
         self.node_value = value
         self.node_attribute = node_attribute
-        self.node_sub_tree = []
 
     def insert_sub_tree(self, sub_tree):
         self.node_sub_tree.append(sub_tree)
@@ -153,7 +153,7 @@ class Node:
 def initTempEntropy(attribute, attributes_information_gain, examples, gain_measure, info_gain, probabilietes, value,
                     values_count):
     if gain_measure == info_gain:
-        temp_entropy = entropy(probabilietes)
+        temp_entropy = calc_entropy(probabilietes)
     else:
         temp_entropy = min(probabilietes)
     attributes_information_gain[attribute] -= float(values_count[(attribute, value)]['count']) / len(
@@ -172,7 +172,7 @@ def returnMaxAttribute(attributes_information_gain):
 
 def calculate_c(taggings_counter, total_size, gain_measure):
     probs = [float(count) / total_size for tag, count in taggings_counter.iteritems()]
-    return entropy(probs) if gain_measure == "info-gain" else min(probs)
+    return calc_entropy(probs) if gain_measure == "info-gain" else min(probs)
 
 
 def count_values(attributes, examples):
@@ -188,7 +188,7 @@ def count_values(attributes, examples):
     return attribute_and_value_to_counts
 
 
-def entropy(probablities):
+def calc_entropy(probablities):
     return -1 * sum(prob * log(prob, 2) for prob in probablities)
 
 
