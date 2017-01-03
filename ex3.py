@@ -20,7 +20,7 @@ def write_final_tree(tree, number_tabs, output_file):
         write_final_tree(child, number_tabs + 1, output_file)
 
 
-def id3_algorithm(examples, attributes, attributes_values, gain, best_attribute_value, node_attribute=None):
+def algorithm(examples, attributes, attributes_values, gain, best_attribute_value, node_attribute=None):
     # there is no exmaples
     if len(examples) == 0:
         return Node(node_attribute, best_attribute_value)
@@ -54,7 +54,7 @@ def id3_algorithm(examples, attributes, attributes_values, gain, best_attribute_
             for attr in attributes:
                 if attr != best_attribute:
                     all_non_best_attributes.append(attr)
-            subtree = id3_algorithm(example, all_non_best_attributes, attributes_values, gain,
+            subtree = algorithm(example, all_non_best_attributes, attributes_values, gain,
                                     best_attribute_value, majority(examples))
             tree.insert_sub_tree(subtree)
         return tree
@@ -224,7 +224,7 @@ if __name__ == '__main__':
 
     attributes_to_values, attributes, examples_list = parse_train_file(train_file_path)
 
-    tree = id3_algorithm(examples_list, attributes, attributes_to_values, measure_gain, "abc")
+    tree = algorithm(examples_list, attributes, attributes_to_values, measure_gain, "abc")
     output_file = open("output.txt", 'w')
     write_final_tree(tree, 0, output_file)
 
