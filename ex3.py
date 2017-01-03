@@ -4,30 +4,26 @@ import numpy as np
 from collections import Counter
 
 
-# def train(train_file_path, gain_measure):
-#     return id3_algorithm(examples, attributes, attributes_values, gain_measure)
-
-
-
-def write_final_tree(tree, number_tabs,output_file):
+def write_final_tree(tree, number_tabs, output_file):
     for child in tree.get_node_sub_trees():
         for i in xrange(number_tabs):
             output_file.write(" ")
         if child.is_have_sub_trees() == False:
             print str(tree.node_attribute) + " = " + str(child.get_value()) + " : " + str(child.get_node_attribute())
-            output_file.write(str(tree.node_attribute) + " = " + str(child.get_value()) + " : " + str(child.get_node_attribute()))
-        else :
+            output_file.write(
+                str(tree.node_attribute) + " = " + str(child.get_value()) + " : " + str(child.get_node_attribute()))
+        else:
             print str(tree.node_attribute) + " = " + child.get_value()
             output_file.write(str(tree.node_attribute) + " = " + child.get_value())
         output_file.write("\n")
 
-        write_final_tree(child, number_tabs+1, output_file)
+        write_final_tree(child, number_tabs + 1, output_file)
 
 
-def id3_algorithm(examples, attributes, attributes_values, gain_measure, default=None, value="ROOT"):
+def id3_algorithm(examples, attributes, attributes_values, gain, best_attribute_value, node_attribute=None):
     # there is no exmaples
     if len(examples) == 0:
-        return Node(default, value)
+        return Node(node_attribute, best_attribute_value)
 
     # all the exmaples are from the same classification
     same_classification = True
@@ -37,38 +33,53 @@ def id3_algorithm(examples, attributes, attributes_values, gain_measure, default
             same_classification = False
             break
     if same_classification:
-        return Node(first_classification, value)
+        return Node(first_classification, best_attribute_value)
 
     elif len(attributes[:-1]) == 0:
-        return Node(majority_value(examples), value)
+        return Node(majority(examples), best_attribute_value)
     else:
-        best_attribute = choose_best_attribute(attributes, examples, gain_measure)
-        tree = Node(best_attribute, value)
-        examples_by_value = split_examples_by_value(examples, attributes.index(best_attribute),
-                                                    attributes_values[best_attribute])
-        for value, example_i in examples_by_value.iteritems():
-            subtree = id3_algorithm(example_i, [a for a in attributes if a != best_attribute],
-                                    attributes_values,
-                                    gain_measure,
-                                    majority_value(examples), value)
+        best_attribute = choose_best_attribute(attributes, examples, gain)
+        tree = Node(best_attribute, best_attribute_value)
+        # seperating the exmaples by values
+        sepereted_examples = init_sepereted_examples(attributes_values, best_attribute)
+        for example in examples:
+            best_attribute_index_in_attributes_list = attributes.index(best_attribute)
+            best_attribute_value = example[best_attribute_index_in_attributes_list]
+            sepereted_examples[best_attribute_value].append(
+                list_without(example, best_attribute_index_in_attributes_list))
+        for best_attribute_value in sepereted_examples:
+            sepereted_examples[best_attribute_value] = np.array(sepereted_examples[best_attribute_value])
+        for best_attribute_value, example in sepereted_examples.iteritems():
+            all_non_best_attributes = []
+            for attr in attributes:
+                if attr != best_attribute:
+                    all_non_best_attributes.append(attr)
+            subtree = id3_algorithm(example, all_non_best_attributes, attributes_values, gain,
+                                    best_attribute_value, majority(examples))
             tree.insert_sub_tree(subtree)
         return tree
 
 
-def majority_value(examples):
-    return Counter(examples[:, -1]).most_common(1)[0][0]
+def init_sepereted_examples(attributes_values, best_attribute):
+    sepereted_examples = {}
+    for value in attributes_values[best_attribute]:
+        sepereted_examples[value] = []
+    return sepereted_examples
 
 
-def split_examples_by_value(examples, attribute_index, attribute_values):
-    examples_by_value = {}
-    for value in attribute_values:
-        examples_by_value[value] = []
-    for example in examples:
-        value = example[attribute_index]
-        examples_by_value[value].append(list_without(example, attribute_index))
-    for value in examples_by_value:
-        examples_by_value[value] = np.array(examples_by_value[value])
-    return examples_by_value
+def majority(examples):
+    yes_counter, no_counter = 0, 0
+    for e in examples:
+        if e[-1] == "yes":
+            yes_counter += 1
+        else:
+            no_counter += 1
+
+    if yes_counter > no_counter:
+        return "yes"
+
+    return "no"
+    # return Counter(examples[:, -1]).most_common(1)[0][0]
 
 
 def list_without(a_list, i):
@@ -138,6 +149,7 @@ class Node:
     def is_have_sub_trees(self):
         return len(self.node_sub_tree) > 0
 
+
 def initTempEntropy(attribute, attributes_information_gain, examples, gain_measure, info_gain, probabilietes, value,
                     values_count):
     if gain_measure == info_gain:
@@ -183,7 +195,7 @@ def entropy(probablities):
 def predict(tree, example, attributes):
     while tree.is_have_sub_trees():
         value = example[attributes.index(tree.node_attribute)]
-        tree = list(child for child in tree.get_node_sub_trees() if child.value == value)[0]
+        tree = list(child for child in tree.get_node_sub_trees() if child.node_value == value)[0]
         if not tree.is_have_sub_trees():
             return tree.node_attribute
 
@@ -193,7 +205,7 @@ def calc_accuracy(attributes, examples, tree):
     for idx, example in enumerate(examples):
         prediction = predict(tree, example, attributes)
         correct += 1 if prediction == example[-1] else 0
-        print '%s: %s' % (i, prediction)
+        print '%s: %s' % (idx, prediction)
     return float(correct) / len(examples)
 
 
@@ -204,6 +216,7 @@ def parse_validation_file(validation_file_path):
 
     return attributes, examples
 
+
 if __name__ == '__main__':
     train_file_path = sys.argv[1]
     validation_file_path = sys.argv[2]
@@ -211,11 +224,11 @@ if __name__ == '__main__':
 
     attributes_to_values, attributes, examples_list = parse_train_file(train_file_path)
 
-    tree = id3_algorithm(examples_list, attributes, attributes_to_values, "info-gain")
+    tree = id3_algorithm(examples_list, attributes, attributes_to_values, measure_gain, "abc")
     output_file = open("output.txt", 'w')
-    write_final_tree(tree,0, output_file)
+    write_final_tree(tree, 0, output_file)
 
     attributes, examples = parse_validation_file(validation_file_path)
-    # accuracy = calc_accuracy(attributes, examples, tree)
+    accuracy = calc_accuracy(attributes, examples, tree)
 
-    print accuracy
+    print str(accuracy * 100) + "%"
