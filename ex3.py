@@ -4,21 +4,6 @@ import numpy as np
 from collections import Counter
 
 
-def write_final_tree(tree, number_tabs, output_file):
-    for child in tree.get_node_sub_trees():
-        for i in xrange(number_tabs):
-            output_file.write(" ")
-        if child.is_have_sub_trees() == False:
-            print str(tree.node_attribute) + " = " + str(child.get_value()) + " : " + str(child.get_node_attribute())
-            output_file.write(
-                str(tree.node_attribute) + " = " + str(child.get_value()) + " : " + str(child.get_node_attribute()))
-        else:
-            print str(tree.node_attribute) + " = " + child.get_value()
-            output_file.write(str(tree.node_attribute) + " = " + child.get_value())
-        output_file.write("\n")
-
-        write_final_tree(child, number_tabs + 1, output_file)
-
 
 def algorithm(examples, attributes, attributes_values, gain, best_attribute_value, node_attribute=None):
     # there is no exmaples
@@ -43,21 +28,37 @@ def algorithm(examples, attributes, attributes_values, gain, best_attribute_valu
         # seperating the exmaples by values
         sepereted_examples = init_sepereted_examples(attributes_values, best_attribute)
         for example in examples:
-            best_attribute_index_in_attributes_list = attributes.index(best_attribute)
-            best_attribute_value = example[best_attribute_index_in_attributes_list]
-            sepereted_examples[best_attribute_value].append(
-                list_without(example, best_attribute_index_in_attributes_list))
-        for best_attribute_value in sepereted_examples:
-            sepereted_examples[best_attribute_value] = np.array(sepereted_examples[best_attribute_value])
-        for best_attribute_value, example in sepereted_examples.iteritems():
-            all_non_best_attributes = []
-            for attr in attributes:
-                if attr != best_attribute:
-                    all_non_best_attributes.append(attr)
-            subtree = algorithm(example, all_non_best_attributes, attributes_values, gain,
-                                    best_attribute_value, majority(examples))
-            tree.insert_sub_tree(subtree)
+            one_iteration_exmaple(attributes, best_attribute, example, sepereted_examples)
+        sub_calc(attributes, attributes_values, best_attribute, examples, gain, sepereted_examples, tree)
         return tree
+
+
+def one_iteration_exmaple(attributes, best_attribute, example, sepereted_examples):
+    best_attribute_index_in_attributes_list = attributes.index(best_attribute)
+    best_attribute_value = example[best_attribute_index_in_attributes_list]
+    sepereted_examples[best_attribute_value].append(
+        np.delete(example, best_attribute_index_in_attributes_list))
+
+
+def sub_calc(attributes, attributes_values, best_attribute, examples, gain, sepereted_examples, tree):
+    init_seperate(sepereted_examples)
+    for best_attribute_value, example in sepereted_examples.iteritems():
+        all_non_best_attributes = []
+        init_non_best_attributes(all_non_best_attributes, attributes, best_attribute)
+        subtree = algorithm(example, all_non_best_attributes, attributes_values, gain,
+                            best_attribute_value, majority(examples))
+        tree.insert_sub_tree(subtree)
+
+
+def init_non_best_attributes(all_non_best_attributes, attributes, best_attribute):
+    for attr in attributes:
+        if attr != best_attribute:
+            all_non_best_attributes.append(attr)
+
+
+def init_seperate(sepereted_examples):
+    for best_attribute_value in sepereted_examples:
+        sepereted_examples[best_attribute_value] = np.array(sepereted_examples[best_attribute_value])
 
 
 def init_sepereted_examples(attributes_values, best_attribute):
@@ -68,18 +69,21 @@ def init_sepereted_examples(attributes_values, best_attribute):
 
 
 def majority(examples):
-    yes_counter, no_counter = 0, 0
+    counter = {}
     for e in examples:
-        if e[-1] == "yes":
-            yes_counter += 1
+        if e[-1] not in counter:
+            counter[e[-1]] = 1
         else:
-            no_counter += 1
+            counter[e[-1]] += 1
 
-    if yes_counter > no_counter:
-        return "yes"
+    max = 0
+    best_label = None
+    for label,count in counter.iteritems():
+        if counter[(label)] > max:
+            max = counter[(label)]
+            best_label = label
 
-    return "no"
-    # return Counter(examples[:, -1]).most_common(1)[0][0]
+    return best_label
 
 
 def list_without(a_list, i):
@@ -105,7 +109,10 @@ def parse_train_file(train_file_path):
 def choose_best_attribute(attributes, examples, gain_measure):
     probabilietes = [float(count) / len(examples) for tag, count in Counter(examples[:, -1]).iteritems()]
     info_gain = "info-gain"
+
+
     s_entropy = calc_entropy(probabilietes) if gain_measure == info_gain else min(probabilietes)
+
     values_count = count_values(attributes, examples)
     attributes_information_gain = {}
     classifiers = 'yesAndNoTags'
@@ -115,18 +122,32 @@ def choose_best_attribute(attributes, examples, gain_measure):
 
     return returnMaxAttribute(attributes_information_gain)
 
-
 def handleAttributeAndValue(attribute, attributes_information_gain, classifiers, examples, gain_measure, info_gain,
-                            s_entropy, value, values_count):
+                            s_entropy, value, values):
     if attribute not in attributes_information_gain:
         attributes_information_gain[attribute] = s_entropy
     probabilietes = []
-    tags_and_counts = values_count[(attribute, value)][('%s' % classifiers)]
+    tags_and_counts = values[(attribute, value)][('%s' % classifiers)]
     for tag, count in tags_and_counts.iteritems():
-        probabilietes.append(float(count) / values_count[(attribute, value)]['count'])
+        probabilietes.append(float(count) / values[(attribute, value)]['count'])
     initTempEntropy(attribute, attributes_information_gain, examples, gain_measure, info_gain, probabilietes, value,
-                    values_count)
+                    values)
 
+def calc_accuracy(attributes, examples, tree):
+    correct = 0
+    for idx, example in enumerate(examples):
+        prediction = predict(tree, example, attributes)
+        correct += 1 if prediction == example[-1] else 0
+        print '%s: %s' % (idx, prediction)
+    return float(correct) / len(examples)
+
+
+def parse_validation_file(validation_file_path):
+    text = np.loadtxt(validation_file_path, dtype=str)
+    attributes = text[0].tolist()
+    examples = text[1:]
+
+    return attributes, examples
 
 class Node:
     def __init__(self, node_attribute, value):
@@ -170,22 +191,37 @@ def returnMaxAttribute(attributes_information_gain):
     return best_attribute
 
 
-def calculate_c(taggings_counter, total_size, gain_measure):
-    probs = [float(count) / total_size for tag, count in taggings_counter.iteritems()]
-    return calc_entropy(probs) if gain_measure == "info-gain" else min(probs)
+def write_final_tree(tree, number_tabs, output_file):
+    for child in tree.get_node_sub_trees():
+        for i in xrange(number_tabs):
+            output_file.write(" ")
+        if child.is_have_sub_trees() == False:
+            print str(tree.node_attribute) + " = " + str(child.get_value()) + " : " + str(child.get_node_attribute())
+            output_file.write(
+                str(tree.node_attribute) + " = " + str(child.get_value()) + " : " + str(child.get_node_attribute()))
+        else:
+            print str(tree.node_attribute) + " = " + child.get_value()
+            output_file.write(str(tree.node_attribute) + " = " + child.get_value())
+        output_file.write("\n")
+
+        write_final_tree(child, number_tabs + 1, output_file)
 
 
 def count_values(attributes, examples):
     attribute_and_value_to_counts = {}
     for example in examples:
         for idx, value in enumerate(example[:-1]):
-            attribute = attributes[:-1][idx]
-            if (attribute, value) not in attribute_and_value_to_counts:
-                attribute_and_value_to_counts[(attribute, value)] = {'count': 0, 'yesAndNoTags': Counter()}
-            attribute_and_value_to_counts[(attribute, value)]['count'] += 1
-            attribute_and_value_to_counts[(attribute, value)]['yesAndNoTags'][example[-1]] += 1
+            iterate_examples(attribute_and_value_to_counts, attributes, example, idx, value)
 
     return attribute_and_value_to_counts
+
+
+def iterate_examples(attribute_and_value_to_counts, attributes, example, idx, value):
+    attribute = attributes[:-1][idx]
+    if (attribute, value) not in attribute_and_value_to_counts:
+        attribute_and_value_to_counts[(attribute, value)] = {'count': 0, 'yesAndNoTags': Counter()}
+    attribute_and_value_to_counts[(attribute, value)]['count'] += 1
+    attribute_and_value_to_counts[(attribute, value)]['yesAndNoTags'][example[-1]] += 1
 
 
 def calc_entropy(probablities):
@@ -198,23 +234,6 @@ def predict(tree, example, attributes):
         tree = list(child for child in tree.get_node_sub_trees() if child.node_value == value)[0]
         if not tree.is_have_sub_trees():
             return tree.node_attribute
-
-
-def calc_accuracy(attributes, examples, tree):
-    correct = 0
-    for idx, example in enumerate(examples):
-        prediction = predict(tree, example, attributes)
-        correct += 1 if prediction == example[-1] else 0
-        print '%s: %s' % (idx, prediction)
-    return float(correct) / len(examples)
-
-
-def parse_validation_file(validation_file_path):
-    text = np.loadtxt(validation_file_path, dtype=str)
-    attributes = text[0].tolist()
-    examples = text[1:]
-
-    return attributes, examples
 
 
 if __name__ == '__main__':
@@ -230,5 +249,7 @@ if __name__ == '__main__':
 
     attributes, examples = parse_validation_file(validation_file_path)
     accuracy = calc_accuracy(attributes, examples, tree)
+    accuracy_file = open("output_acc.txt", 'w')
+    accuracy_file.write(str(accuracy*100))
 
     print str(accuracy * 100) + "%"
