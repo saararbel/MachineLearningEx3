@@ -23,14 +23,18 @@ def algorithm(examples, attributes, attributes_values, gain, best_attribute_valu
     elif len(attributes[:-1]) == 0:
         return Node(majority(examples), best_attribute_value)
     else:
-        best_attribute = choose_best_attribute(attributes, examples, gain)
-        tree = Node(best_attribute, best_attribute_value)
-        # seperating the exmaples by values
-        sepereted_examples = init_sepereted_examples(attributes_values, best_attribute)
-        for example in examples:
-            one_iteration_exmaple(attributes, best_attribute, example, sepereted_examples)
-        sub_calc(attributes, attributes_values, best_attribute, examples, gain, sepereted_examples, tree)
-        return tree
+        return takin_case(attributes, attributes_values, best_attribute_value, examples, gain)
+
+
+def takin_case(attributes, attributes_values, best_attribute_value, examples, gain):
+    best_attribute = choose_best_attribute(attributes, examples, gain)
+    tree = Node(best_attribute, best_attribute_value)
+    # seperating the exmaples by values
+    sepereted_examples = init_sepereted_examples(attributes_values, best_attribute)
+    for example in examples:
+        one_iteration_exmaple(attributes, best_attribute, example, sepereted_examples)
+    sub_calc(attributes, attributes_values, best_attribute, examples, gain, sepereted_examples, tree)
+    return tree
 
 
 def one_iteration_exmaple(attributes, best_attribute, example, sepereted_examples):
@@ -84,10 +88,6 @@ def majority(examples):
             best_label = label
 
     return best_label
-
-
-def list_without(a_list, i):
-    return np.delete(a_list, i)
 
 
 def parse_train_file(train_file_path):
